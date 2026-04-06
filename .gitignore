@@ -1,0 +1,6 @@
+# NutriTrack .gitignore
+*.ps1
+doctext.txt
+node_modules/
+.DS_Store
+Thumbs.db
