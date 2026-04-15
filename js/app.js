@@ -69,6 +69,7 @@ const App = {
     initDarkMode();
     this._renderFecha();
     this._renderStats();
+    this._renderWater();
     this._renderChecklist();
     this._renderNota();
     this._startOverlayCheck();
@@ -105,6 +106,43 @@ const App = {
       <div class="stat-mini"><span class="valor">${checked}/${items.length}</span><span class="label">Items</span></div>
       <div class="stat-mini"><span class="valor">${racha}</span><span class="label">Racha</span></div>
     `;
+  },
+
+  _renderWater() {
+    const el = document.getElementById('water-widget');
+    if (!el) return;
+    const agua = Storage.obtenerAgua(this.fecha);
+    const pct = Math.min(100, (agua.vasos / agua.meta) * 100);
+    const full = agua.vasos >= agua.meta;
+
+    el.innerHTML = `
+      <div class="water-card fade-in ${full ? 'complete' : ''}">
+        <div class="water-left">
+          <div class="water-bottle">
+            <div class="water-fill" style="height:${pct}%"></div>
+            <div class="water-drops">${'💧'.repeat(Math.min(agua.vasos, agua.meta))}</div>
+          </div>
+        </div>
+        <div class="water-right">
+          <div class="water-count">${agua.vasos}<span>/${agua.meta}</span></div>
+          <div class="water-label">vasos de agua</div>
+          <div class="water-btns">
+            <button id="water-minus" class="water-btn minus">−</button>
+            <button id="water-plus" class="water-btn plus">+ 1 vaso</button>
+          </div>
+          ${full ? '<div class="water-done">✅ ¡Meta cumplida!</div>' : ''}
+        </div>
+      </div>
+    `;
+
+    document.getElementById('water-plus').addEventListener('click', () => {
+      Storage.agregarVasoAgua(this.fecha);
+      this._renderWater();
+    });
+    document.getElementById('water-minus').addEventListener('click', () => {
+      Storage.quitarVasoAgua(this.fecha);
+      this._renderWater();
+    });
   },
 
   _isItemDisponible(item) {
