@@ -20,7 +20,6 @@
     <span>Activa las notificaciones para no olvidar tu plan</span>
   </div>
 
-  <!-- Header -->
   <header class="app-header">
     <a href="index.html" class="logo">
       <div class="logo-icon">N</div>
@@ -34,7 +33,6 @@
     </div>
   </header>
 
-  <!-- Main Content -->
   <main class="container">
     <div id="fecha-display" class="fecha-display"></div>
     <div id="stats-row" class="stats-row"></div>
@@ -58,6 +56,10 @@
       <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
       <span>Hoy</span>
     </a>
+    <a href="comidas.html" class="nav-item" id="nav-comidas">
+      <svg viewBox="0 0 24 24"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+      <span>Comidas</span>
+    </a>
     <a href="progreso.html" class="nav-item" id="nav-progreso">
       <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
       <span>Peso</span>
@@ -77,7 +79,6 @@
   <script src="js/app.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => App.init());
-    // Register Service Worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(() => {});
     }

@@ -6,15 +6,15 @@
   <meta name="description" content="NutriTrack - Progreso de peso semanal">
   <meta name="theme-color" content="#1A6B3C">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <title>NutriTrack - Progreso</title>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>NutriTrack - Progreso de Peso</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='%231A6B3C'/><text x='32' y='44' font-size='36' text-anchor='middle' fill='white' font-family='Arial'>N</text></svg>">
   <link rel="stylesheet" href="css/app.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
-  <!-- Header -->
   <header class="app-header">
     <a href="index.html" class="logo">
       <div class="logo-icon">N</div>
@@ -28,49 +28,28 @@
     </div>
   </header>
 
-  <!-- Main Content -->
   <main class="container">
     <h1 class="page-title">Progreso de Peso</h1>
     <p class="page-subtitle">Registro semanal y avance hacia tu meta</p>
 
-    <!-- Stats -->
-    <div id="peso-progreso"></div>
+    <div id="progreso-stats" class="progreso-stats"></div>
+    <div id="progress-bar" class="progress-bar-container"></div>
+    <div id="hito-msg"></div>
+    <div id="chart-wrapper" class="chart-wrapper"><canvas id="peso-chart"></canvas></div>
 
-    <!-- Chart -->
-    <div class="chart-wrapper">
-      <canvas id="peso-chart"></canvas>
-    </div>
-
-    <!-- Form -->
     <div class="peso-form-card">
       <h3>Registrar peso</h3>
-      <form id="peso-form">
-        <div class="form-row">
-          <div class="form-group">
-            <label for="input-peso">Peso (kg)</label>
-            <input type="number" id="input-peso" step="0.1" min="30" max="300" placeholder="Ej: 105.3">
-          </div>
-          <button type="submit" id="btn-guardar-peso" class="btn btn-primary">Registrar</button>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="peso-input">Peso (kg)</label>
+          <input type="number" id="peso-input" step="0.1" placeholder="Ej: 105.3">
         </div>
-      </form>
+        <button id="btn-registrar-peso" class="btn btn-primary">Registrar</button>
+      </div>
       <div id="peso-dia-msg" class="peso-dia-msg"></div>
     </div>
 
-    <!-- Table -->
-    <div class="tabla-card">
-      <h3>Historial de pesaje</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>Semana</th>
-            <th>Fecha</th>
-            <th>Peso</th>
-            <th>Diferencia</th>
-          </tr>
-        </thead>
-        <tbody id="peso-tabla-body"></tbody>
-      </table>
-    </div>
+    <div id="peso-tabla"></div>
   </main>
 
   <!-- Bottom Navigation -->
@@ -78,6 +57,10 @@
     <a href="index.html" class="nav-item" id="nav-checklist">
       <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
       <span>Hoy</span>
+    </a>
+    <a href="comidas.html" class="nav-item" id="nav-comidas">
+      <svg viewBox="0 0 24 24"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+      <span>Comidas</span>
     </a>
     <a href="progreso.html" class="nav-item active" id="nav-progreso">
       <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
@@ -98,6 +81,9 @@
   <script src="js/app.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => Progreso.init());
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
   </script>
 </body>
 </html>

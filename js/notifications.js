@@ -1,6 +1,7 @@
 /* =========================================================
-   NutriTrack - Sistema de Notificaciones (sin servidor)
-   Usa la Notification API del navegador + setInterval
+   NutriTrack - Sistema de Notificaciones (PWA compatible)
+   Usa Service Worker registration.showNotification()
+   + setTimeout con delays precisos
    ========================================================= */
 
 const Notificaciones = {
@@ -17,7 +18,7 @@ const Notificaciones = {
   ],
 
   permiso: false,
-  intervalo: null,
+  timers: [],
 
   async init() {
     if (!('Notification' in window)) return;
@@ -30,7 +31,11 @@ const Notificaciones = {
     }
 
     this._showBanner(!this.permiso);
-    this._startLoop();
+
+    if (this.permiso) {
+      this._scheduleToday();
+      this._registerPeriodicSync();
+    }
   },
 
   async solicitarPermiso() {
@@ -38,6 +43,10 @@ const Notificaciones = {
     const result = await Notification.requestPermission();
     this.permiso = result === 'granted';
     this._showBanner(!this.permiso);
+    if (this.permiso) {
+      this._scheduleToday();
+      this._registerPeriodicSync();
+    }
   },
 
   _showBanner(show) {
@@ -45,59 +54,124 @@ const Notificaciones = {
     if (banner) banner.style.display = show ? 'flex' : 'none';
   },
 
-  _startLoop() {
-    // Check every 30 seconds
-    this.intervalo = setInterval(() => this._check(), 30000);
-    this._check(); // run once immediately
-  },
-
-  _check() {
-    if (!this.permiso) return;
+  /* Schedule all remaining notifications for today using setTimeout */
+  _scheduleToday() {
+    // Clear existing timers
+    this.timers.forEach(t => clearTimeout(t));
+    this.timers = [];
 
     const now = new Date();
-    const dia = now.getDay(); // 0=dom, 1=lun...
-    const horaActual = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-
+    const dia = now.getDay();
     const config = Storage.obtenerConfig();
     const diasGym = config.diasGym || [1,2,3,4,5];
-
     const sent = Storage.getNotifSent();
 
     for (const n of this.SCHEDULE) {
-      if (sent[n.id]) continue; // already sent today
+      if (sent[n.id]) continue;
 
-      // Check if gym-related notification and it's not a gym day
+      // Check gym days
       if (['pre_entreno', 'recordatorio_gym', 'desayuno'].includes(n.id)) {
         if (!diasGym.includes(dia)) continue;
       }
-
       if (!n.dias.includes(dia)) continue;
-      if (horaActual !== n.hora) continue;
 
-      // Send notification
-      this._send(n.titulo, n.msg);
-      Storage.markNotifSent(n.id);
+      // Calculate delay
+      const [h, m] = n.hora.split(':').map(Number);
+      const target = new Date(now);
+      target.setHours(h, m, 0, 0);
+
+      const delay = target.getTime() - now.getTime();
+      if (delay < 0) continue; // already passed
+
+      const timer = setTimeout(() => {
+        this._send(n.titulo, n.msg);
+        Storage.markNotifSent(n.id);
+      }, delay);
+
+      this.timers.push(timer);
     }
   },
 
-  _send(titulo, body) {
+  /* Register periodic background sync for notifications when app is closed */
+  async _registerPeriodicSync() {
+    if (!('serviceWorker' in navigator)) return;
     try {
-      new Notification(`NutriTrack - ${titulo}`, {
-        body,
-        icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="%231A6B3C"/><text x="32" y="44" font-size="36" text-anchor="middle" fill="white" font-family="Arial">N</text></svg>',
-        badge: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="%231A6B3C"/><text x="32" y="44" font-size="36" text-anchor="middle" fill="white" font-family="Arial">N</text></svg>',
-        tag: `nutritrack-${titulo}`,
-        requireInteraction: false
-      });
-    } catch (e) {
-      // Service worker notification fallback
-      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({
-          type: 'SHOW_NOTIFICATION',
-          title: `NutriTrack - ${titulo}`,
-          body
+      const reg = await navigator.serviceWorker.ready;
+
+      // Send schedule to SW so it knows when to notify
+      if (reg.active) {
+        reg.active.postMessage({
+          type: 'SET_SCHEDULE',
+          schedule: this.SCHEDULE,
+          config: Storage.obtenerConfig()
         });
       }
+
+      // Try periodic sync (Chrome only, needs site engagement)
+      if ('periodicSync' in reg) {
+        const status = await navigator.permissions.query({ name: 'periodic-background-sync' });
+        if (status.state === 'granted') {
+          await reg.periodicSync.register('check-notifications', {
+            minInterval: 60 * 1000
+          });
+        }
+      }
+    } catch (e) {
+      // periodicSync not available, fall back to setInterval
+      this._startFallbackLoop();
+    }
+  },
+
+  /* Fallback: check every 30s (only works while app is open) */
+  _startFallbackLoop() {
+    setInterval(() => {
+      if (!this.permiso) return;
+      const now = new Date();
+      const dia = now.getDay();
+      const horaActual = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+      const config = Storage.obtenerConfig();
+      const diasGym = config.diasGym || [1,2,3,4,5];
+      const sent = Storage.getNotifSent();
+
+      for (const n of this.SCHEDULE) {
+        if (sent[n.id]) continue;
+        if (['pre_entreno', 'recordatorio_gym', 'desayuno'].includes(n.id) && !diasGym.includes(dia)) continue;
+        if (!n.dias.includes(dia)) continue;
+        if (horaActual !== n.hora) continue;
+        this._send(n.titulo, n.msg);
+        Storage.markNotifSent(n.id);
+      }
+    }, 30000);
+  },
+
+  /* Send notification via Service Worker (works in PWA) */
+  async _send(titulo, body) {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      await reg.showNotification(`NutriTrack - ${titulo}`, {
+        body,
+        icon: './icon-192.png',
+        badge: './icon-192.png',
+        tag: `nutritrack-${titulo}`,
+        vibrate: [200, 100, 200],
+        requireInteraction: false,
+        data: { url: './index.html' }
+      });
+    } catch (e) {
+      // Fallback to Notification API
+      try {
+        new Notification(`NutriTrack - ${titulo}`, { body, tag: `nutritrack-${titulo}` });
+      } catch (e2) { /* silent */ }
+    }
+  },
+
+  /* Test notification - called from config page */
+  async test() {
+    if (!this.permiso) {
+      await this.solicitarPermiso();
+    }
+    if (this.permiso) {
+      await this._send('Prueba', 'Las notificaciones funcionan correctamente!');
     }
   }
 };

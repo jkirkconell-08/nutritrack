@@ -7,6 +7,7 @@ const Storage = {
   PESO_KEY: 'nutritrack_peso',
   CONFIG_KEY: 'nutritrack_config',
   NOTIF_SENT_KEY: 'nutritrack_notif_sent',
+  COMIDAS_PREFIX: 'nutritrack_comidas_',
 
   /* ---------- helpers ---------- */
   _monthKey(fecha) {
@@ -40,16 +41,27 @@ const Storage = {
     return JSON.parse(localStorage.getItem(key) || '{}');
   },
 
+  /* ---------- comidas / calorías ---------- */
+  guardarComidas(fecha, data) {
+    const key = this.COMIDAS_PREFIX + fecha;
+    localStorage.setItem(key, JSON.stringify(data));
+  },
+
+  obtenerComidas(fecha) {
+    const key = this.COMIDAS_PREFIX + fecha;
+    const raw = localStorage.getItem(key);
+    if (raw) return JSON.parse(raw);
+    return { fecha, comidas: [] };
+  },
+
   /* ---------- peso ---------- */
   guardarPeso(fecha, peso) {
     const data = this.obtenerPesos();
-    // Determine week number based on start date April 7 2026
     const startDate = new Date('2026-04-06T12:00:00');
     const current = new Date(fecha + 'T12:00:00');
     const diffDays = Math.floor((current - startDate) / (1000 * 60 * 60 * 24));
     const semana = Math.floor(diffDays / 7) + 1;
 
-    // Remove existing record for same date
     const idx = data.registros.findIndex(r => r.fecha === fecha);
     if (idx >= 0) data.registros.splice(idx, 1);
 
@@ -61,7 +73,6 @@ const Storage = {
   obtenerPesos() {
     const raw = localStorage.getItem(this.PESO_KEY);
     if (raw) return JSON.parse(raw);
-    // Initial weight
     return {
       registros: [
         { fecha: '2026-04-06', peso: 106.7, semana: 1 }
@@ -76,15 +87,20 @@ const Storage = {
 
   obtenerConfig() {
     const raw = localStorage.getItem(this.CONFIG_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const cfg = JSON.parse(raw);
+      if (!cfg.metaCal) cfg.metaCal = 2200;
+      return cfg;
+    }
     return {
       nombre: 'Jorge',
       horaGym: '06:00',
-      diasGym: [1, 2, 3, 4, 5], // lun=1 ... vie=5
+      diasGym: [1, 2, 3, 4, 5],
       horaCena: '19:00',
       meta: 84.5,
       hito: 100,
-      pesoInicial: 106.7
+      pesoInicial: 106.7,
+      metaCal: 2200
     };
   },
 
@@ -107,7 +123,7 @@ const Storage = {
   /* ---------- dark mode ---------- */
   getDarkMode() {
     const v = localStorage.getItem('nutritrack_dark');
-    if (v === null) return true; // default dark
+    if (v === null) return true;
     return v === 'true';
   },
 
@@ -154,7 +170,7 @@ const Storage = {
     const data = {};
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key.startsWith('nutritrack_')) {
+      if (key.startsWith('nutritrack_') || key === 'nutritrack_dark') {
         data[key] = JSON.parse(localStorage.getItem(key));
       }
     }
@@ -164,7 +180,7 @@ const Storage = {
   importarDatos(jsonStr) {
     const data = JSON.parse(jsonStr);
     for (const [key, val] of Object.entries(data)) {
-      if (key.startsWith('nutritrack_')) {
+      if (key.startsWith('nutritrack_') || key === 'nutritrack_dark') {
         localStorage.setItem(key, JSON.stringify(val));
       }
     }
