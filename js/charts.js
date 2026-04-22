@@ -105,121 +105,130 @@ const Charts = {
   },
 
   renderTabla() {
-    const tbody = document.getElementById('peso-tabla-body');
-    if (!tbody) return;
+    const container = document.getElementById('peso-tabla');
+    if (!container) return;
 
     const data = Storage.obtenerPesos();
-    const registros = data.registros;
+    const registros = [...data.registros].reverse(); // newest first
 
-    tbody.innerHTML = '';
-    for (let i = 0; i < registros.length; i++) {
-      const r = registros[i];
-      const diff = i > 0 ? (r.peso - registros[i-1].peso).toFixed(1) : '—';
-      const diffClass = i > 0 ? (parseFloat(diff) < 0 ? 'positivo' : parseFloat(diff) > 0 ? 'negativo' : '') : '';
-      const diffIcon = i > 0 ? (parseFloat(diff) < 0 ? '▼' : parseFloat(diff) > 0 ? '▲' : '—') : '';
-
-      const d = new Date(r.fecha + 'T12:00:00');
-      const fechaStr = d.toLocaleDateString('es', { day:'numeric', month:'short', year:'numeric' });
-
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>Semana ${r.semana}</td>
-        <td>${fechaStr}</td>
-        <td><strong>${r.peso} kg</strong></td>
-        <td class="${diffClass}">${diffIcon} ${diff !== '—' ? diff + ' kg' : diff}</td>
-      `;
-      tbody.appendChild(tr);
+    if (registros.length === 0) {
+      container.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:16px;font-size:0.85rem;">Sin registros aún</p>';
+      return;
     }
-  },
 
-  renderProgreso() {
-    const el = document.getElementById('peso-progreso');
-    if (!el) return;
-
-    const data = Storage.obtenerPesos();
-    const config = Storage.obtenerConfig();
-    const registros = data.registros;
-    const pesoActual = registros.length > 0 ? registros[registros.length - 1].peso : config.pesoInicial;
-    const pesoInicial = config.pesoInicial;
-    const meta = config.meta;
-    const hito = config.hito;
-
-    const totalPerder = pesoInicial - meta;
-    const perdido = pesoInicial - pesoActual;
-    const porcentaje = Math.max(0, Math.min(100, (perdido / totalPerder * 100))).toFixed(1);
-    const faltaHito = (pesoActual - hito).toFixed(1);
-    const faltaMeta = (pesoActual - meta).toFixed(1);
-
-    el.innerHTML = `
-      <div class="progreso-stats">
-        <div class="stat-card">
-          <span class="stat-valor">${pesoActual} kg</span>
-          <span class="stat-label">Peso actual</span>
-        </div>
-        <div class="stat-card accent">
-          <span class="stat-valor">${porcentaje}%</span>
-          <span class="stat-label">Avance a meta</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-valor">${faltaMeta} kg</span>
-          <span class="stat-label">Faltan para ${meta} kg</span>
+    const allReg = data.registros;
+    container.innerHTML = `
+      <div style="margin-top:20px;">
+        <h3 style="font-size:0.85rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:10px;">Historial</h3>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          ${registros.map((r, idx) => {
+            const origIdx = allReg.length - 1 - idx;
+            const prev = origIdx > 0 ? allReg[origIdx - 1] : null;
+            const diff = prev ? (r.peso - prev.peso).toFixed(1) : null;
+            const diffColor = diff === null ? '' : parseFloat(diff) < 0 ? '#30D158' : parseFloat(diff) > 0 ? '#FF453A' : 'var(--text-muted)';
+            const diffText = diff === null ? '' : (parseFloat(diff) > 0 ? '+' : '') + diff + ' kg';
+            const d = new Date(r.fecha + 'T12:00:00');
+            const fechaStr = d.toLocaleDateString('es', { day:'numeric', month:'short', year:'numeric' });
+            return `
+              <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg-input);border-radius:10px;padding:10px 14px;">
+                <div>
+                  <div style="font-weight:700;font-size:0.9rem;">${r.peso} kg</div>
+                  <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">${fechaStr}</div>
+                </div>
+                ${diff !== null ? `<div style="font-size:0.82rem;font-weight:700;color:${diffColor};">${diffText}</div>` : '<div style="font-size:0.75rem;color:var(--text-muted);">Inicial</div>'}
+              </div>`;
+          }).join('')}
         </div>
       </div>
-      <div class="progress-bar-container">
-        <div class="progress-bar-bg">
-          <div class="progress-bar-fill" style="width:${porcentaje}%"></div>
-          <span class="progress-bar-text">${pesoInicial} kg → ${meta} kg</span>
-        </div>
-      </div>
-      ${pesoActual > hito ? `<p class="hito-msg">Te faltan <strong>${faltaHito} kg</strong> para llegar a los ${hito} kg</p>` : `<p class="hito-msg logrado">Ya pasaste el hito de ${hito} kg!</p>`}
     `;
   },
 
-  setupFormulario() {
-    const form = document.getElementById('peso-form');
-    if (!form) return;
+  renderProgreso() {
+    const config = Storage.obtenerConfig();
+    const data = Storage.obtenerPesos();
+    const registros = data.registros;
+    const pesoActual = registros.length > 0 ? registros[registros.length - 1].peso : config.pesoInicial;
+    const pesoInicial = config.pesoInicial || pesoActual;
+    const meta = config.meta || pesoActual;
 
-    const hoy = new Date();
-    const esLunes = hoy.getDay() === 1;
-    const inputPeso = document.getElementById('input-peso');
-    const btnGuardar = document.getElementById('btn-guardar-peso');
-    const msgDia = document.getElementById('peso-dia-msg');
+    const totalPerder = Math.abs(pesoInicial - meta);
+    const progreso = totalPerder > 0 ? Math.max(0, Math.min(100, (Math.abs(pesoInicial - pesoActual) / totalPerder) * 100)) : 0;
+    const faltaMeta = (pesoActual - meta).toFixed(1);
 
-    if (!esLunes) {
-      if (inputPeso) inputPeso.disabled = true;
-      if (btnGuardar) btnGuardar.disabled = true;
-      if (msgDia) {
-        msgDia.textContent = 'El pesaje es los lunes en ayunas';
-        msgDia.style.display = 'block';
-      }
-    } else {
-      if (msgDia) {
-        msgDia.textContent = 'Hoy es lunes — registra tu peso en ayunas';
-        msgDia.classList.add('lunes');
-        msgDia.style.display = 'block';
-      }
+    // Stats row
+    const statsEl = document.getElementById('progreso-stats');
+    if (statsEl) {
+      statsEl.innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px;">
+          <div style="background:var(--bg-input);border-radius:14px;padding:14px 10px;text-align:center;">
+            <div style="font-size:1.5rem;font-weight:900;">${pesoActual}</div>
+            <div style="font-size:0.7rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;margin-top:2px;">kg actual</div>
+          </div>
+          <div style="background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.2);border-radius:14px;padding:14px 10px;text-align:center;">
+            <div style="font-size:1.5rem;font-weight:900;color:#A78BFA;">${progreso.toFixed(0)}%</div>
+            <div style="font-size:0.7rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;margin-top:2px;">Avance</div>
+          </div>
+          <div style="background:var(--bg-input);border-radius:14px;padding:14px 10px;text-align:center;">
+            <div style="font-size:1.5rem;font-weight:900;">${Math.abs(faltaMeta)}</div>
+            <div style="font-size:0.7rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;margin-top:2px;">kg ${parseFloat(faltaMeta) > 0 ? 'faltan' : 'logrado'}</div>
+          </div>
+        </div>
+      `;
     }
 
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      if (!esLunes) return;
+    // Progress bar
+    const barEl = document.getElementById('progress-bar');
+    if (barEl) {
+      barEl.innerHTML = `
+        <div style="background:var(--bg-input);border-radius:8px;height:10px;overflow:hidden;margin-bottom:8px;">
+          <div style="height:100%;width:${progreso}%;background:linear-gradient(90deg,#7C3AED,#A78BFA);border-radius:8px;transition:width 0.6s;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--text-muted);">
+          <span>${pesoInicial} kg (inicio)</span><span>Meta: ${meta} kg</span>
+        </div>
+      `;
+    }
+  },
+
+  setupFormulario() {
+    // IDs que existen en progreso.html
+    const inputPeso  = document.getElementById('peso-input');
+    const btnGuardar = document.getElementById('btn-registrar-peso');
+    const msgDia     = document.getElementById('peso-dia-msg');
+
+    if (!btnGuardar || !inputPeso) return;
+
+    // Permitir registrar cualquier día (no solo lunes)
+    if (msgDia) {
+      const hoy = new Date();
+      const esLunes = hoy.getDay() === 1;
+      msgDia.textContent = esLunes
+        ? 'Hoy es lunes — buen momento para pesarse en ayunas'
+        : 'Puedes registrar tu peso en cualquier momento';
+      msgDia.style.display = 'block';
+    }
+
+    btnGuardar.addEventListener('click', () => {
       const peso = parseFloat(inputPeso.value);
-      if (isNaN(peso) || peso < 30 || peso > 300) return;
+      if (isNaN(peso) || peso < 20 || peso > 400) {
+        if (typeof showToast === 'function') showToast('Ingresa un peso válido (20-400 kg)', 'warning');
+        return;
+      }
 
       const fecha = Storage.today();
       Storage.guardarPeso(fecha, peso);
 
       this.renderGrafica();
-      this.renderTabla();
       this.renderProgreso();
+      this.renderTabla();
 
       inputPeso.value = '';
-      // Show success
-      const msg = document.createElement('div');
-      msg.className = 'toast success';
-      msg.textContent = `Peso registrado: ${peso} kg`;
-      document.body.appendChild(msg);
-      setTimeout(() => msg.remove(), 3000);
+      if (typeof showToast === 'function') showToast(`Peso registrado: ${peso} kg`);
+    });
+
+    // Allow Enter key
+    inputPeso.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') btnGuardar.click();
     });
   }
 };
